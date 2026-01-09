@@ -3,6 +3,83 @@ library(shinydashboard)
 library(DT)
 library(jsonlite)
 library(readxl)
+library(digest)
+
+# Data file configuration
+DATA_FILE <- "ehr_data.rds"
+ENCRYPTION_KEY_FILE <- ".ehr_key"
+
+# Function to get or create encryption key
+get_encryption_key <- function() {
+  if (file.exists(ENCRYPTION_KEY_FILE)) {
+    readLines(ENCRYPTION_KEY_FILE, warn = FALSE)[1]
+  } else {
+    # Generate a random key on first run
+    key <- digest(paste(Sys.time(), runif(1)), algo = "sha256")
+    writeLines(key, ENCRYPTION_KEY_FILE)
+    message("Created new encryption key file: ", ENCRYPTION_KEY_FILE)
+    message("IMPORTANT: Keep this file secure and backed up!")
+    key
+  }
+}
+
+# Function to encrypt data
+encrypt_data <- function(data, key) {
+  serialized <- serialize(data, NULL)
+  key_bytes <- charToRaw(key)
+  encrypted <- raw(length(serialized))
+  for (i in seq_along(serialized)) {
+    encrypted[i] <- as.raw(bitwXor(as.integer(serialized[i]), 
+                                    as.integer(key_bytes[(i %% length(key_bytes)) + 1])))
+  }
+  encrypted
+}
+
+# Function to decrypt data
+decrypt_data <- function(encrypted, key) {
+  key_bytes <- charToRaw(key)
+  decrypted <- raw(length(encrypted))
+  for (i in seq_along(encrypted)) {
+    decrypted[i] <- as.raw(bitwXor(as.integer(encrypted[i]), 
+                                    as.integer(key_bytes[(i %% length(key_bytes)) + 1])))
+  }
+  unserialize(decrypted)
+}
+
+# Function to save all data
+save_ehr_data <- function(patients, problems, medications, allergies, visits, vitals) {
+  key <- get_encryption_key()
+  data_list <- list(
+    patients = patients,
+    problems = problems,
+    medications = medications,
+    allergies = allergies,
+    visits = visits,
+    vitals = vitals,
+    saved_at = Sys.time()
+  )
+  encrypted <- encrypt_data(data_list, key)
+  writeBin(encrypted, DATA_FILE)
+  message("Data saved and encrypted to ", DATA_FILE)
+}
+
+# Function to load all data
+load_ehr_data <- function() {
+  if (!file.exists(DATA_FILE)) {
+    return(NULL)
+  }
+  
+  tryCatch({
+    key <- get_encryption_key()
+    encrypted <- readBin(DATA_FILE, "raw", n = file.info(DATA_FILE)$size)
+    data_list <- decrypt_data(encrypted, key)
+    message("Data loaded from ", DATA_FILE)
+    data_list
+  }, error = function(e) {
+    warning("Failed to load data: ", e$message)
+    NULL
+  })
+}
 
 # Load ICD-10 codes from Excel file
 # Update the file path to match your file location
