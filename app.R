@@ -147,7 +147,7 @@ if (file.exists(cpt_file)) {
 }
 
 ui <- dashboardPage(
-  dashboardHeader(title = "EHR System"),
+  dashboardHeader(title = "Madrigal EHR"),
   
   dashboardSidebar(
     sidebarMenu(
@@ -197,6 +197,10 @@ ui <- dashboardPage(
               column(4, textInput("patient_name", "Name", "")),
               column(4, dateInput("patient_dob", "Date of Birth", value = NULL)),
               column(4, textInput("patient_mrn", "MRN", "", placeholder = "Auto-generated"))
+            ),
+            fluidRow(
+              column(6, textInput("patient_phone", "Phone Number", "")),
+              column(6, textInput("patient_email", "Email Address", ""))
             )
           )
         ),
@@ -216,10 +220,25 @@ ui <- dashboardPage(
           tabPanel("Vitals",
             br(),
             fluidRow(
-              column(3, numericInput("vital_weight", "Weight (kg)", value = NULL, min = 0)),
-              column(3, numericInput("vital_height", "Height (cm)", value = NULL, min = 0)),
-              column(3, numericInput("vital_waist", "Waist (cm)", value = NULL, min = 0)),
-              column(3, br(), actionButton("add_vital", "Add Vitals", icon = icon("plus"),
+              column(12,
+                h4("Add Vital Signs"),
+                dateInput("vital_date", "Date:", value = Sys.Date())
+              )
+            ),
+            fluidRow(
+              column(3, numericInput("vital_weight", "Weight (lbs)", value = NULL, min = 0)),
+              column(3, numericInput("vital_height", "Height (inches)", value = NULL, min = 0)),
+              column(3, numericInput("vital_waist", "Waist (inches)", value = NULL, min = 0)),
+              column(3, numericInput("vital_hr", "Heart Rate (bpm)", value = NULL, min = 0))
+            ),
+            fluidRow(
+              column(3, numericInput("vital_bp_sys", "BP Systolic", value = NULL, min = 0)),
+              column(3, numericInput("vital_bp_dia", "BP Diastolic", value = NULL, min = 0)),
+              column(3, numericInput("vital_resp", "Resp Rate (/min)", value = NULL, min = 0)),
+              column(3, numericInput("vital_ox", "Pulse Ox (%)", value = NULL, min = 0, max = 100))
+            ),
+            fluidRow(
+              column(12, br(), actionButton("add_vital", "Add Vitals", icon = icon("plus"),
                                           class = "btn-primary"))
             ),
             hr(),
@@ -245,59 +264,97 @@ ui <- dashboardPage(
 
 server <- function(input, output, session) {
   
+  # Load existing data or initialize empty dataframes
+  existing_data <- load_ehr_data()
+  
   # Reactive values to store data
-  patients <- reactiveVal(data.frame(
-    id = integer(),
-    name = character(),
-    dob = character(),
-    mrn = character(),
-    stringsAsFactors = FALSE
-  ))
+  patients <- reactiveVal(
+    if (!is.null(existing_data)) existing_data$patients 
+    else data.frame(
+      id = integer(),
+      name = character(),
+      dob = character(),
+      mrn = character(),
+      phone = character(),
+      email = character(),
+      stringsAsFactors = FALSE
+    )
+  )
   
-  problems <- reactiveVal(data.frame(
-    patient_id = integer(),
-    id = integer(),
-    text = character(),
-    stringsAsFactors = FALSE
-  ))
+  problems <- reactiveVal(
+    if (!is.null(existing_data)) existing_data$problems
+    else data.frame(
+      patient_id = integer(),
+      id = integer(),
+      text = character(),
+      stringsAsFactors = FALSE
+    )
+  )
   
-  medications <- reactiveVal(data.frame(
-    patient_id = integer(),
-    id = integer(),
-    text = character(),
-    stringsAsFactors = FALSE
-  ))
+  medications <- reactiveVal(
+    if (!is.null(existing_data)) existing_data$medications
+    else data.frame(
+      patient_id = integer(),
+      id = integer(),
+      text = character(),
+      stringsAsFactors = FALSE
+    )
+  )
   
-  allergies <- reactiveVal(data.frame(
-    patient_id = integer(),
-    id = integer(),
-    text = character(),
-    stringsAsFactors = FALSE
-  ))
+  allergies <- reactiveVal(
+    if (!is.null(existing_data)) existing_data$allergies
+    else data.frame(
+      patient_id = integer(),
+      id = integer(),
+      text = character(),
+      stringsAsFactors = FALSE
+    )
+  )
   
-  visits <- reactiveVal(data.frame(
-    patient_id = integer(),
-    id = integer(),
-    date = character(),
-    chief_complaint = character(),
-    subjective = character(),
-    objective = character(),
-    assessment_plan = character(),
-    icd10_codes = character(),
-    cpt_codes = character(),
-    stringsAsFactors = FALSE
-  ))
+  visits <- reactiveVal(
+    if (!is.null(existing_data)) existing_data$visits
+    else data.frame(
+      patient_id = integer(),
+      id = integer(),
+      date = character(),
+      visit_type = character(),
+      chief_complaint = character(),
+      subjective = character(),
+      objective = character(),
+      assessment_plan = character(),
+      icd10_codes = character(),
+      cpt_codes = character(),
+      stringsAsFactors = FALSE
+    )
+  )
   
-  vitals <- reactiveVal(data.frame(
-    patient_id = integer(),
-    id = integer(),
-    date = character(),
-    weight = numeric(),
-    height = numeric(),
-    waist = numeric(),
-    bmi = numeric(),
-    stringsAsFactors = FALSE
-  ))
+  vitals <- reactiveVal(
+    if (!is.null(existing_data)) existing_data$vitals
+    else data.frame(
+      patient_id = integer(),
+      id = integer(),
+      date = character(),
+      weight = numeric(),
+      height = numeric(),
+      waist = numeric(),
+      bmi = numeric(),
+      hr = numeric(),
+      bp_systolic = numeric(),
+      bp_diastolic = numeric(),
+      resp_rate = numeric(),
+      pulse_ox = numeric(),
+      stringsAsFactors = FALSE
+    )
+  )
+  
+  # Auto-save function that triggers on data changes
+  auto_save <- reactive({
+    list(patients(), problems(), medications(), allergies(), visits(), vitals())
+  })
+  
+  observeEvent(auto_save(), {
+    save_ehr_data(patients(), problems(), medications(), allergies(), visits(), vitals())
+  }, ignoreInit = TRUE)
   
   current_patient_id <- reactiveVal(NULL)
   
@@ -331,6 +388,8 @@ server <- function(input, output, session) {
       updateTextInput(session, "patient_name", value = pt_data[selected_row, "name"])
       updateDateInput(session, "patient_dob", value = as.Date(pt_data[selected_row, "dob"]))
       updateTextInput(session, "patient_mrn", value = pt_data[selected_row, "mrn"])
+      updateTextInput(session, "patient_phone", value = pt_data[selected_row, "phone"])
+      updateTextInput(session, "patient_email", value = pt_data[selected_row, "email"])
       
       # Switch to chart tab
       updateTabItems(session, "sidebarMenu", "chart")
@@ -347,6 +406,8 @@ server <- function(input, output, session) {
       name = "New Patient",
       dob = as.character(Sys.Date()),
       mrn = new_mrn,
+      phone = "",
+      email = "",
       stringsAsFactors = FALSE
     )
     
@@ -356,6 +417,8 @@ server <- function(input, output, session) {
     updateTextInput(session, "patient_name", value = "New Patient")
     updateDateInput(session, "patient_dob", value = Sys.Date())
     updateTextInput(session, "patient_mrn", value = new_mrn)
+    updateTextInput(session, "patient_phone", value = "")
+    updateTextInput(session, "patient_email", value = "")
     
     updateTabItems(session, "sidebarMenu", "chart")
   })
@@ -368,6 +431,8 @@ server <- function(input, output, session) {
       if (length(idx) > 0) {
         pt_data[idx, "name"] <- input$patient_name
         pt_data[idx, "dob"] <- as.character(input$patient_dob)
+        pt_data[idx, "phone"] <- input$patient_phone
+        pt_data[idx, "email"] <- input$patient_email
         patients(pt_data)
       }
     }
@@ -559,6 +624,9 @@ server <- function(input, output, session) {
       title = "New Visit",
       size = "l",
       dateInput("visit_date", "Date:", value = Sys.Date()),
+      radioButtons("visit_type", "Visit Type:", 
+                   choices = c("Video" = "video", "Phone" = "phone", "In Person" = "in_person", "Asynchronous" = "asynchronous"),
+                   selected = "video", inline = TRUE),
       textInput("visit_cc", "Chief Complaint:", ""),
       
       h5("Subjective"),
@@ -650,6 +718,7 @@ server <- function(input, output, session) {
       patient_id = current_patient_id(),
       id = as.integer(Sys.time()),
       date = as.character(input$visit_date),
+      visit_type = input$visit_type,
       chief_complaint = input$visit_cc,
       subjective = input$visit_subjective,
       objective = input$visit_objective,
@@ -671,7 +740,13 @@ server <- function(input, output, session) {
     
     lapply(1:nrow(pt_visits), function(i) {
       visit <- pt_visits[i, ]
-      box(width = 12, title = paste("Visit -", visit$date),
+      visit_type_label <- switch(visit$visit_type,
+                                 "video" = "Video Visit",
+                                 "phone" = "Phone Visit",
+                                 "in_person" = "In Person Visit",
+                                 "asynchronous" = "Asynchronous Visit",
+                                 "Unknown")
+      box(width = 12, title = paste(visit_type_label, "-", visit$date),
         p(strong("Chief Complaint:"), visit$chief_complaint),
         hr(),
         p(strong("Subjective:")),
@@ -694,38 +769,66 @@ server <- function(input, output, session) {
       return()
     }
     
-    if (is.na(input$vital_weight) || is.na(input$vital_height)) {
-      showNotification("Weight and height are required", type = "error")
-      return()
+    # Calculate BMI if weight and height are provided (using lbs and inches)
+    bmi <- NA
+    if (!is.na(input$vital_weight) && !is.na(input$vital_height)) {
+      # BMI = (weight in lbs / (height in inches)^2) * 703
+      bmi <- round((input$vital_weight / (input$vital_height^2)) * 703, 1)
     }
-    
-    height_m <- input$vital_height / 100
-    bmi <- input$vital_weight / (height_m * height_m)
     
     new_vital <- data.frame(
       patient_id = current_patient_id(),
       id = as.integer(Sys.time()),
-      date = as.character(Sys.Date()),
-      weight = input$vital_weight,
-      height = input$vital_height,
+      date = as.character(input$vital_date),
+      weight = ifelse(is.na(input$vital_weight), NA, input$vital_weight),
+      height = ifelse(is.na(input$vital_height), NA, input$vital_height),
       waist = ifelse(is.na(input$vital_waist), NA, input$vital_waist),
-      bmi = round(bmi, 1),
+      bmi = bmi,
+      hr = ifelse(is.na(input$vital_hr), NA, input$vital_hr),
+      bp_systolic = ifelse(is.na(input$vital_bp_sys), NA, input$vital_bp_sys),
+      bp_diastolic = ifelse(is.na(input$vital_bp_dia), NA, input$vital_bp_dia),
+      resp_rate = ifelse(is.na(input$vital_resp), NA, input$vital_resp),
+      pulse_ox = ifelse(is.na(input$vital_ox), NA, input$vital_ox),
       stringsAsFactors = FALSE
     )
     
     vitals(rbind(vitals(), new_vital))
     
+    # Clear inputs
+    updateDateInput(session, "vital_date", value = Sys.Date())
     updateNumericInput(session, "vital_weight", value = NA)
     updateNumericInput(session, "vital_height", value = NA)
     updateNumericInput(session, "vital_waist", value = NA)
+    updateNumericInput(session, "vital_hr", value = NA)
+    updateNumericInput(session, "vital_bp_sys", value = NA)
+    updateNumericInput(session, "vital_bp_dia", value = NA)
+    updateNumericInput(session, "vital_resp", value = NA)
+    updateNumericInput(session, "vital_ox", value = NA)
   })
   
   # Vitals table
   output$vitals_table <- renderDT({
     if (is.null(current_patient_id())) return(NULL)
     
-    pt_vitals <- vitals()[vitals()$patient_id == current_patient_id(), c("date", "weight", "height", "bmi", "waist")]
-    datatable(pt_vitals, options = list(pageLength = 10))
+    pt_vitals <- vitals()[vitals()$patient_id == current_patient_id(), ]
+    
+    if (nrow(pt_vitals) > 0) {
+      # Create BP column combining systolic/diastolic
+      pt_vitals$BP <- ifelse(!is.na(pt_vitals$bp_systolic) & !is.na(pt_vitals$bp_diastolic),
+                             paste0(pt_vitals$bp_systolic, "/", pt_vitals$bp_diastolic),
+                             NA)
+      
+      # Select and rename columns for display
+      display_vitals <- pt_vitals[, c("date", "weight", "height", "bmi", "waist", 
+                                      "hr", "BP", "resp_rate", "pulse_ox")]
+      names(display_vitals) <- c("Date", "Weight (lbs)", "Height (in)", "BMI", 
+                                 "Waist (in)", "HR (bpm)", "BP (mmHg)", 
+                                 "RR (/min)", "SpO2 (%)")
+    } else {
+      display_vitals <- data.frame()
+    }
+    
+    datatable(display_vitals, options = list(pageLength = 10))
   })
   
   # Export chart

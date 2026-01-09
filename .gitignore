@@ -2,3 +2,5 @@
 .Rhistory
 .RData
 .Ruserdata
+ehr_data.rds
+.ehr_key

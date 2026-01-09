@@ -1,4 +1,4 @@
-# Madrigal EHR System - R Shiny
+# Madrigal EHR - R Shiny
 
 A basic electronic health records system built in R Shiny for outpatient and telemedicine practice management.
 
@@ -9,11 +9,13 @@ A basic electronic health records system built in R Shiny for outpatient and tel
 **Patient Management**
 - Create and manage patient records with auto-generated MRNs
 - Search patient database
-- Edit patient demographics (name, date of birth)
+- Edit patient demographics (name, date of birth, phone number, email address)
+- Encrypted local data storage with automatic saving
 
 **Clinical Documentation**
 - SOAP note format (Subjective, Objective, Assessment/Plan)
 - Chief complaint tracking
+- Visit type selection (Video, Phone, In Person, Asynchronous)
 - Visit history with date stamps
 - ICD-10 diagnosis coding with searchable database
 - CPT procedure coding (in development)
@@ -24,15 +26,21 @@ A basic electronic health records system built in R Shiny for outpatient and tel
 - Allergy tracking with visual highlighting
 
 **Vitals Tracking**
-- Weight (kg)
-- Height (cm)
-- Waist circumference (cm)
-- Automatic BMI calculation
+- Weight (lbs)
+- Height (inches)
+- Waist circumference (inches)
+- Heart Rate (bpm)
+- Blood Pressure (systolic/diastolic)
+- Respiratory Rate (breaths per minute)
+- Pulse Oximetry (SpO2 %)
+- Automatic BMI calculation (imperial formula)
+- Manual date entry for vital signs
 - Historical vitals display in table format
 
 **Data Management**
 - Export patient charts as JSON files
-- All data persists during session
+- Encrypted automatic data persistence
+- All data stored locally with XOR encryption
 
 ## Installation
 
@@ -96,14 +104,15 @@ shiny::runApp()
 
 ### Basic Workflow
 
-1. **Create a Patient**: Click "New Patient" button and enter demographics
+1. **Create a Patient**: Click "New Patient" button and enter demographics including contact information
 2. **Add Clinical Information**: Use sidebar to add problems, medications, and allergies
 3. **Document a Visit**: Navigate to the Visits tab and click "New Visit"
+   - Select visit type (Video, Phone, In Person, or Asynchronous)
    - Enter chief complaint
    - Document SOAP note sections
    - Search and select ICD-10 codes
    - Save visit
-4. **Record Vitals**: Navigate to Vitals tab, enter measurements, and click "Add Vitals"
+4. **Record Vitals**: Navigate to Vitals tab, select date, enter measurements (all optional), and click "Add Vitals"
 5. **Export Chart**: Use "Export Chart" button to download patient data as JSON
 
 ### ICD-10 Code Search
@@ -117,53 +126,73 @@ The ICD-10 search is case-insensitive and searches both code and description fie
 
 Patient data is stored in reactive dataframes with the following structure:
 
-**Patients**: id, name, dob, mrn
+**Patients**: id, name, dob, mrn, phone, email
 **Problems**: patient_id, id, text
 **Medications**: patient_id, id, text
 **Allergies**: patient_id, id, text
-**Visits**: patient_id, id, date, chief_complaint, subjective, objective, assessment_plan, icd10_codes, cpt_codes
-**Vitals**: patient_id, id, date, weight, height, waist, bmi
+**Visits**: patient_id, id, date, visit_type, chief_complaint, subjective, objective, assessment_plan, icd10_codes, cpt_codes
+**Vitals**: patient_id, id, date, weight, height, waist, bmi, hr, bp_systolic, bp_diastolic, resp_rate, pulse_ox
 
-## Planned Features
-
-### Near-term Development
-- Digital consent forms and intake questionnaires
-- Calendly integration for appointment scheduling
-- Enhanced chart export with PDF formatting
-- CPT code search functionality (currently in development)
-
-### Future Enhancements
-- Database backend for persistent storage
-- User authentication and role-based access
-- E-prescribing integration
-- Lab results interface
-- Billing and claims submission
-- HIPAA compliance audit logs
-
-## Architecture Notes
-
-The application uses Shiny's reactive programming model with reactiveVal() for state management. This architecture supports:
-- Real-time updates across UI components
-- Easy integration with external APIs
-- Scalable data structure for adding new features
-- Future migration to database backend
+All measurements use imperial units (lbs, inches). BMI is calculated using the formula: (weight in lbs / height in inches²) × 703
 
 ## Known Issues
 
+### Current Bugs
 - CPT code loading and search functionality needs troubleshooting
+- ICD-10 and CPT code selection interface is not user-friendly for selecting multiple codes
 - XOR encryption provides basic security but should be upgraded to AES-256 for production
 - No user authentication or access controls
 - Limited to single-user operation
 - No automated backup system
 
+### Planned Fixes (Pinned)
+1. Fix CPT code import and search
+2. Improve multi-select interface for ICD-10 and CPT codes
+3. Add timestamp (not just date) for vital signs
+4. Add status tracking - "discontinued" for medications and "resolved" for problems (with visual graying instead of deletion)
+5. Pre-built patient queries and reports:
+   - Patients with no visit in last 3 months
+   - Patients due for follow-up
+   - Active problem lists
+   - Medication reconciliation
+   - Population health analytics
+
+## Future Enhancements
+
+### Near-term Development
+- Digital consent forms and intake questionnaires
+- Calendly integration for appointment scheduling
+- Enhanced chart export with PDF formatting
+- Improved code selection UI
+
+### Long-term Goals
+- Database backend for persistent storage (PostgreSQL, MySQL, or SQLite)
+- Multi-user support with authentication
+- Role-based access controls
+- E-prescribing integration
+- Lab results interface
+- Billing and claims submission
+- HIPAA compliance audit logs
+- HL7/FHIR interoperability
+
+## Architecture Notes
+
+The application uses Shiny's reactive programming model with reactiveVal() for state management. This architecture supports:
+- Real-time updates across UI components
+- Automatic encrypted data persistence
+- Easy integration with external APIs
+- Scalable data structure for adding new features
+- Future migration to database backend
+
 ## Contributing
 
 This is a basic framework designed to be extended. Key areas for contribution:
-- Database integration (PostgreSQL, MySQL, SQLite)
+- Database integration
 - PDF generation for chart exports
 - Additional clinical templates
 - Telemedicine video integration
-- HL7/FHIR interoperability
+- Reporting and analytics
+- Security enhancements
 
 ## License
 
@@ -171,4 +200,4 @@ To be determined.
 
 ## Disclaimer
 
-This software is for educational and development purposes. It is not intended for production use in clinical settings without proper validation, security implementation, and HIPAA compliance measures.
+This software is for educational and development purposes. It is not intended for production use in clinical settings without proper validation, security implementation, and HIPAA compliance measures. The encryption implementation is basic and not suitable for protecting actual patient data in a production environment.
