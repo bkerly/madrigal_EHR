@@ -203,7 +203,9 @@ server <- function(input, output, session) {
     id = integer(),
     date = character(),
     chief_complaint = character(),
-    note = character(),
+    subjective = character(),
+    objective = character(),
+    assessment_plan = character(),
     icd10_codes = character(),
     cpt_codes = character(),
     stringsAsFactors = FALSE
@@ -481,7 +483,18 @@ server <- function(input, output, session) {
       size = "l",
       dateInput("visit_date", "Date:", value = Sys.Date()),
       textInput("visit_cc", "Chief Complaint:", ""),
-      textAreaInput("visit_note", "Visit Note:", "", rows = 6),
+      
+      h5("Subjective"),
+      textAreaInput("visit_subjective", NULL, "", rows = 4, 
+                   placeholder = "Patient's description of symptoms, history..."),
+      
+      h5("Objective"),
+      textAreaInput("visit_objective", NULL, "", rows = 4,
+                   placeholder = "Physical exam findings, vital signs, test results..."),
+      
+      h5("Assessment/Plan"),
+      textAreaInput("visit_assessment_plan", NULL, "", rows = 4,
+                   placeholder = "Diagnosis, treatment plan, follow-up..."),
       
       # ICD-10 search and selection
       h5("ICD-10 Codes"),
@@ -561,7 +574,9 @@ server <- function(input, output, session) {
       id = as.integer(Sys.time()),
       date = as.character(input$visit_date),
       chief_complaint = input$visit_cc,
-      note = input$visit_note,
+      subjective = input$visit_subjective,
+      objective = input$visit_objective,
+      assessment_plan = input$visit_assessment_plan,
       icd10_codes = paste(input$visit_icd10, collapse = "; "),
       cpt_codes = paste(input$visit_cpt, collapse = "; "),
       stringsAsFactors = FALSE
@@ -581,7 +596,14 @@ server <- function(input, output, session) {
       visit <- pt_visits[i, ]
       box(width = 12, title = paste("Visit -", visit$date),
         p(strong("Chief Complaint:"), visit$chief_complaint),
-        p(strong("Note:"), visit$note),
+        hr(),
+        p(strong("Subjective:")),
+        p(visit$subjective, style = "margin-left: 20px; white-space: pre-wrap;"),
+        p(strong("Objective:")),
+        p(visit$objective, style = "margin-left: 20px; white-space: pre-wrap;"),
+        p(strong("Assessment/Plan:")),
+        p(visit$assessment_plan, style = "margin-left: 20px; white-space: pre-wrap;"),
+        hr(),
         p(strong("ICD-10:"), visit$icd10_codes),
         p(strong("CPT:"), visit$cpt_codes)
       )
